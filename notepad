@@ -1,0 +1,9 @@
+b
+.\venv\Scripts\Activate.ps1
+
+takbo
+uvicorn main:app --reload --port 5000
+
+========================
+f
+npx tailwindcss init -p

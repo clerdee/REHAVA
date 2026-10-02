@@ -1,8 +1,22 @@
 import React, { useState } from 'react';
 import AuthLayout from './AuthLayout';
 import TermsOfServiceModal from './TermsOfServiceModal';
+import NotificationToast from './NotificationToast';
 import { API_ENDPOINTS } from '../config/api';
 import logo from '../assets/logo.png';
+
+const REGEX = {
+  NAME: /^[a-zA-Z\s.'-]{2,50}$/,
+  EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  PH_PHONE: /^(09|\+639|639)\d{9}$/,
+  PASSWORD: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!\%*?&#^._-]{6,30}$/,
+};
+
+const STEPS = [
+  { num: 1, title: 'Account Credentials', desc: 'Primary user contact & login' },
+  { num: 2, title: 'Patient Demographics', desc: 'Clinical identity & details' },
+  { num: 3, title: 'Stroke Therapy Profile', desc: 'Lower-limb hemiparesis baseline' },
+];
 
 export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBackToLanding }) {
   const [currentTab, setCurrentTab] = useState(1);
@@ -11,7 +25,11 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+
+  // Centralized Notification Toast State
+  const [toast, setToast] = useState({ message: '', type: 'error' });
+  const triggerToast = (message, type = 'error') => setToast({ message, type });
+  const clearToast = () => setToast({ message: '', type: 'error' });
 
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', email: '', phoneNumber: '',
@@ -24,17 +42,23 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
   });
 
   const handleChange = (e) => {
-    setErrorMsg('');
+    clearToast();
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  const syncPatientFields = (isSelf, base = formData) => ({
+    patientFirstName: isSelf ? base.firstName : '',
+    patientLastName: isSelf ? base.lastName : '',
+    patientEmail: isSelf ? base.email : '',
+    patientPhoneNumber: isSelf ? base.phoneNumber : '',
+  });
 
   const handleRelationshipChange = (e) => {
     const rel = e.target.value;
     const isSelf = rel === 'patient_self';
     setFormData(prev => ({
       ...prev, relationshipToPatient: rel, patientType: isSelf ? 'myself' : 'dependent',
-      patientFirstName: isSelf ? prev.firstName : '', patientLastName: isSelf ? prev.lastName : '',
-      patientEmail: isSelf ? prev.email : '', patientPhoneNumber: isSelf ? prev.phoneNumber : '',
+      ...syncPatientFields(isSelf, prev)
     }));
   };
 
@@ -43,27 +67,95 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
     setFormData(prev => ({
       ...prev, patientType: type,
       relationshipToPatient: isSelf ? 'patient_self' : (prev.relationshipToPatient === 'patient_self' ? 'family_member' : prev.relationshipToPatient),
-      patientFirstName: isSelf ? prev.firstName : '', patientLastName: isSelf ? prev.lastName : '',
-      patientEmail: isSelf ? prev.email : '', patientPhoneNumber: isSelf ? prev.phoneNumber : '',
+      ...syncPatientFields(isSelf, prev)
     }));
   };
 
+  // Regex Validations
+  const validateStep1 = () => {
+    if (!REGEX.NAME.test(formData.firstName.trim())) {
+      triggerToast('First name must contain at least 2 letters (letters only).');
+      return false;
+    }
+    if (!REGEX.NAME.test(formData.lastName.trim())) {
+      triggerToast('Last name must contain at least 2 letters (letters only).');
+      return false;
+    }
+    if (!REGEX.EMAIL.test(formData.email.trim())) {
+      triggerToast('Please provide a valid account email address.');
+      return false;
+    }
+    const cleanPhone = formData.phoneNumber.replace(/[\s-]/g, '');
+    if (!REGEX.PH_PHONE.test(cleanPhone)) {
+      triggerToast('Invalid phone number. Use format: 09XXXXXXXXX or +639XXXXXXXXX.');
+      return false;
+    }
+    if (!REGEX.PASSWORD.test(formData.password)) {
+      triggerToast('Password must be at least 6 characters and include both letters and numbers.');
+      return false;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      triggerToast('Passwords do not match. Please re-enter your password.');
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
+    if (formData.patientType === 'dependent') {
+      if (!REGEX.NAME.test(formData.patientFirstName.trim())) {
+        triggerToast('Patient first name must contain letters only.');
+        return false;
+      }
+      if (!REGEX.NAME.test(formData.patientLastName.trim())) {
+        triggerToast('Patient last name must contain letters only.');
+        return false;
+      }
+      if (!REGEX.EMAIL.test(formData.patientEmail.trim())) {
+        triggerToast('Please enter a valid patient email address.');
+        return false;
+      }
+      const cleanPatientPhone = formData.patientPhoneNumber.replace(/[\s-]/g, '');
+      if (!REGEX.PH_PHONE.test(cleanPatientPhone)) {
+        triggerToast('Patient phone must be a valid 11-digit PH mobile number.');
+        return false;
+      }
+    }
+    const age = parseInt(formData.patientAge, 10);
+    if (isNaN(age) || age < 1 || age > 120) {
+      triggerToast('Please enter a valid patient age between 1 and 120.');
+      return false;
+    }
+    if (!formData.patientGender) {
+      triggerToast('Please select the patient gender.');
+      return false;
+    }
+    return true;
+  };
+
   const handleProceedToStep2 = () => {
+    if (!validateStep1()) return;
     if (formData.patientType === 'myself') {
-      setFormData(prev => ({
-        ...prev, patientFirstName: prev.firstName, patientLastName: prev.lastName,
-        patientEmail: prev.email, patientPhoneNumber: prev.phoneNumber,
-      }));
+      setFormData(prev => ({ ...prev, ...syncPatientFields(true, prev) }));
     }
     setCurrentTab(2);
   };
 
+  const handleProceedToStep3 = () => {
+    if (!validateStep2()) return;
+    setCurrentTab(3);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    if (!agreedToTerms) return setErrorMsg('Please read and accept the Terms of Service.');
-    if (formData.password !== formData.confirmPassword) return setErrorMsg('Passwords do not match.');
-    if (formData.password.length < 6) return setErrorMsg('Password must be at least 6 characters.');
+    clearToast();
+
+    if (!validateStep1()) { setCurrentTab(1); return; }
+    if (!validateStep2()) { setCurrentTab(2); return; }
+    if (!agreedToTerms) {
+      triggerToast('Please read and accept the Terms of Service before completing registration.', 'warning');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -74,9 +166,13 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
-      onRegisterSuccess(data.role === 'patient' ? 'Stroke Rehabilitation Patient' : 'Caregiver Support');
+
+      triggerToast('Registration completed successfully!', 'success');
+      setTimeout(() => {
+        onRegisterSuccess(data.role === 'patient' ? 'Stroke Rehabilitation Patient' : 'Caregiver Support');
+      }, 900);
     } catch (err) {
-      setErrorMsg(err.message);
+      triggerToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -105,7 +201,6 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
         <input
           type={type}
           name={name}
-          required={!readOnly}
           readOnly={readOnly}
           value={formData[name]}
           onChange={handleChange}
@@ -116,8 +211,31 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
     </div>
   );
 
+  const renderPasswordField = (label, name, show, toggleShow) => (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          name={name}
+          value={formData[name]}
+          onChange={handleChange}
+          placeholder="••••••••"
+          className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-pink-500"
+        />
+        <button type="button" onClick={toggleShow} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+          {eyeIcon(show)}
+        </button>
+      </div>
+    </div>
+  );
+
+  const isPatientSelf = formData.patientType === 'myself';
+
   return (
     <AuthLayout>
+      <NotificationToast message={toast.message} type={toast.type} onClose={clearToast} />
+
       <div className="w-full max-w-6xl bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-slate-100 flex flex-col md:flex-row overflow-hidden min-h-[580px]">
         {/* Left Col: Step Navigation */}
         <div className="w-full md:w-5/12 p-8 sm:p-10 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 bg-gradient-to-b from-white via-pink-50/20 to-pink-50/40">
@@ -134,12 +252,17 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
           </div>
 
           <div className="my-6 space-y-2.5">
-            {[
-              { num: 1, title: 'Account Credentials', desc: 'Primary user contact & login' },
-              { num: 2, title: 'Patient Demographics', desc: 'Clinical identity & details' },
-              { num: 3, title: 'Stroke Therapy Profile', desc: 'Lower-limb hemiparesis baseline' }
-            ].map(step => (
-              <button key={step.num} type="button" onClick={() => step.num === 2 ? handleProceedToStep2() : setCurrentTab(step.num)} className={`w-full text-left p-3.5 rounded-2xl border transition flex items-center gap-3.5 ${currentTab === step.num ? 'bg-white border-pink-300 shadow-md shadow-pink-100 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+            {STEPS.map(step => (
+              <button
+                key={step.num}
+                type="button"
+                onClick={() => {
+                  if (step.num === 2) handleProceedToStep2();
+                  else if (step.num === 3) handleProceedToStep3();
+                  else setCurrentTab(1);
+                }}
+                className={`w-full text-left p-3.5 rounded-2xl border transition flex items-center gap-3.5 ${currentTab === step.num ? 'bg-white border-pink-300 shadow-md shadow-pink-100 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
                 <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${currentTab === step.num ? 'bg-pink-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{step.num}</span>
                 <div><p className="text-xs font-bold text-slate-800">{step.title}</p><p className="text-[11px] text-slate-400">{step.desc}</p></div>
               </button>
@@ -151,10 +274,9 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
           </div>
         </div>
 
-        {/* Right Col: Form Steps */}
+        {/* Right Col: Forms with noValidate */}
         <div className="w-full md:w-7/12 p-8 sm:p-10 flex flex-col justify-center overflow-y-auto">
-          {errorMsg && <div className="mb-3.5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl font-medium">⚠️ {errorMsg}</div>}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {/* STEP 1 */}
             {currentTab === 1 && (
               <div className="space-y-3.5">
@@ -178,20 +300,8 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
                   { v: 'other', l: 'Other' },
                 ])}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Password *</label>
-                    <div className="relative">
-                      <input type={showPassword ? 'text' : 'password'} name="password" required minLength={6} value={formData.password} onChange={handleChange} placeholder="••••••••" className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-pink-500" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">{eyeIcon(showPassword)}</button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Confirm Password *</label>
-                    <div className="relative">
-                      <input type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" required minLength={6} value={formData.confirmPassword} onChange={handleChange} placeholder="••••••••" className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-pink-500" />
-                      <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">{eyeIcon(showConfirmPassword)}</button>
-                    </div>
-                  </div>
+                  {renderPasswordField('Password *', 'password', showPassword, () => setShowPassword(!showPassword))}
+                  {renderPasswordField('Confirm Password *', 'confirmPassword', showConfirmPassword, () => setShowConfirmPassword(!showConfirmPassword))}
                 </div>
                 <div className="flex justify-end pt-3">
                   <button type="button" onClick={handleProceedToStep2} className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md transition">Next: Patient Demographics →</button>
@@ -209,7 +319,10 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-2">Who is this account for? *</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {[{ type: 'myself', label: 'Myself (I am the Patient)' }, { type: 'dependent', label: 'Family Member / Dependent' }].map(t => (
+                    {[
+                      { type: 'myself', label: 'Myself (I am the Patient)' },
+                      { type: 'dependent', label: 'Family Member / Dependent' }
+                    ].map(t => (
                       <label key={t.type} className={`p-3 border rounded-xl flex items-center gap-2 cursor-pointer transition ${formData.patientType === t.type ? 'border-pink-500 bg-pink-50/40 text-pink-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
                         <input type="radio" name="patientType" value={t.type} checked={formData.patientType === t.type} onChange={() => handlePatientTypeChange(t.type)} className="accent-pink-600" />
                         <span className="text-xs font-bold">{t.label}</span>
@@ -218,21 +331,27 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {renderField('Patient First Name *', 'patientFirstName', 'text', formData.patientType === 'myself')}
-                  {renderField('Patient Last Name *', 'patientLastName', 'text', formData.patientType === 'myself')}
+                  {renderField('Patient First Name *', 'patientFirstName', 'text', isPatientSelf)}
+                  {renderField('Patient Last Name *', 'patientLastName', 'text', isPatientSelf)}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {renderField('Patient Email Address *', 'patientEmail', 'email', formData.patientType === 'myself')}
-                  {renderField('Patient Phone Number *', 'patientPhoneNumber', 'tel', formData.patientType === 'myself')}
+                  {renderField('Patient Email Address *', 'patientEmail', 'email', isPatientSelf)}
+                  {renderField('Patient Phone Number *', 'patientPhoneNumber', 'tel', isPatientSelf)}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {renderField('Patient Age *', 'patientAge', 'number', false, null, { min: '1', max: '120', placeholder: 'e.g. 58' })}
-                  {renderField('Patient Gender *', 'patientGender', 'text', false, [{ v: '', l: 'Select Gender' }, { v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }, { v: 'other', l: 'Other' }, { v: 'prefer-not-to-say', l: 'Prefer not to say' }])}
-                  {renderField('Occupation Status', 'patientWorkStatus', 'text', false, [{ v: 'unspecified', l: 'Unspecified' }, { v: 'employed', l: 'Employed' }, { v: 'retired', l: 'Retired' }, { v: 'unable_to_work', l: 'Unable to Work' }])}
+                  {renderField('Patient Gender *', 'patientGender', 'text', false, [
+                    { v: '', l: 'Select Gender' }, { v: 'male', l: 'Male' }, { v: 'female', l: 'Female' },
+                    { v: 'other', l: 'Other' }, { v: 'prefer-not-to-say', l: 'Prefer not to say' }
+                  ])}
+                  {renderField('Occupation Status', 'patientWorkStatus', 'text', false, [
+                    { v: 'unspecified', l: 'Unspecified' }, { v: 'employed', l: 'Employed' },
+                    { v: 'retired', l: 'Retired' }, { v: 'unable_to_work', l: 'Unable to Work' }
+                  ])}
                 </div>
                 <div className="flex justify-between pt-3">
                   <button type="button" onClick={() => setCurrentTab(1)} className="border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold px-5 py-2.5 rounded-xl transition">← Back</button>
-                  <button type="button" onClick={() => setCurrentTab(3)} className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md transition">Next: Therapy Profile →</button>
+                  <button type="button" onClick={handleProceedToStep3} className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md transition">Next: Therapy Profile →</button>
                 </div>
               </div>
             )}
@@ -245,12 +364,29 @@ export default function RegisterPage({ onNavigateLogin, onRegisterSuccess, onBac
                   <p className="text-xs text-slate-400">Baseline parameters for sensor positioning and gait calibration.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {renderField('Affected Leg (Hemiparesis) *', 'affectedSide', 'text', false, [{ v: 'left', l: 'Left Leg (Left Hemiparesis)' }, { v: 'right', l: 'Right Leg (Right Hemiparesis)' }, { v: 'bilateral', l: 'Bilateral (Both Legs Affected)' }])}
-                  {renderField('Stroke Recovery Stage *', 'strokeStage', 'text', false, [{ v: 'acute', l: 'Early / Acute Stage (< 3 months)' }, { v: 'subacute', l: 'Subacute Rehabilitation (3 – 6 months)' }, { v: 'chronic', l: 'Chronic Recovery (> 6 months)' }])}
+                  {renderField('Affected Leg (Hemiparesis) *', 'affectedSide', 'text', false, [
+                    { v: 'left', l: 'Left Leg (Left Hemiparesis)' },
+                    { v: 'right', l: 'Right Leg (Right Hemiparesis)' },
+                    { v: 'bilateral', l: 'Bilateral (Both Legs Affected)' }
+                  ])}
+                  {renderField('Stroke Recovery Stage *', 'strokeStage', 'text', false, [
+                    { v: 'acute', l: 'Early / Acute Stage (< 3 months)' },
+                    { v: 'subacute', l: 'Subacute Rehabilitation (3 – 6 months)' },
+                    { v: 'chronic', l: 'Chronic Recovery (> 6 months)' }
+                  ])}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {renderField('Current Walking Capability *', 'mobilityAssistance', 'text', false, [{ v: 'independent', l: 'Independent Ambulation' }, { v: 'cane_walker', l: 'Assisted by Cane / Quad Cane / Walker' }, { v: 'assisted', l: 'Physically Assisted by Caregiver / Therapist' }, { v: 'wheelchair', l: 'Wheelchair Bound (Parallel Bar Practice)' }])}
-                  {renderField('Support / Splint Gear *', 'assistiveDevice', 'text', false, [{ v: 'none', l: 'No External Splint / Barefoot / Shoes Only' }, { v: 'orthosis_splint', l: 'Using Ankle-Foot Splint / Orthosis' }, { v: 'brace', l: 'Using Knee / Leg Support Brace' }])}
+                  {renderField('Current Walking Capability *', 'mobilityAssistance', 'text', false, [
+                    { v: 'independent', l: 'Independent Ambulation' },
+                    { v: 'cane_walker', l: 'Assisted by Cane / Quad Cane / Walker' },
+                    { v: 'assisted', l: 'Physically Assisted by Caregiver / Therapist' },
+                    { v: 'wheelchair', l: 'Wheelchair Bound (Parallel Bar Practice)' }
+                  ])}
+                  {renderField('Support / Splint Gear *', 'assistiveDevice', 'text', false, [
+                    { v: 'none', l: 'No External Splint / Barefoot / Shoes Only' },
+                    { v: 'orthosis_splint', l: 'Using Ankle-Foot Splint / Orthosis' },
+                    { v: 'brace', l: 'Using Knee / Leg Support Brace' }
+                  ])}
                 </div>
                 <div className="pt-2">
                   <label className="flex items-start gap-2.5 cursor-pointer select-none">

@@ -3,17 +3,15 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# I-load ang db at firebase
 from config.db import db
-import config.firebase
 from routes.auth_routes import auth_bp
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=[os.getenv("FRONTEND_URL", "http://localhost:5173")])
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Blueprint registration
+# API Routes
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
 
 @app.route("/api/health", methods=["GET"])

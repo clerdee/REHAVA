@@ -5,13 +5,15 @@ from dotenv import load_dotenv
 
 from config.db import db
 from routes.auth_routes import auth_bp
+from routes.profile_routes import profile_bp
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "OPTIONS"])
+CORS(app, origins="*", allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "PUT", "OPTIONS"])
 
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
+app.register_blueprint(profile_bp, url_prefix="/api/profile")
 
 @app.route("/api/health", methods=["GET"])
 def health_check():

@@ -7,6 +7,7 @@ const PHONE_REGEX = /^(09|\+639|639)\d{9}$/;
 export default function ProfileBaselineView({ user }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'error', title: 'Profile Notice' });
 
   const notify = (message, type = 'error', title = 'Profile Notice') => setToast({ message, type, title });
@@ -44,7 +45,7 @@ export default function ProfileBaselineView({ user }) {
     const targetEmail = user?.email || cachedUser?.email;
     if (!targetEmail) return;
 
-    fetch(`${API_ENDPOINTS.LOGIN.replace('/auth/login', '')}/auth/profile?email=${targetEmail}`)
+    fetch(`${API_ENDPOINTS.PROFILE || `${API_ENDPOINTS.LOGIN.replace('/auth/login', '')}/profile`}?email=${targetEmail}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!data) return;
@@ -78,21 +79,50 @@ export default function ProfileBaselineView({ user }) {
     e.preventDefault();
     clearToast();
 
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      return notify('First name and last name are required.', 'error', 'Missing Input');
+    }
+
     if (editForm.phoneNumber && editForm.phoneNumber !== 'N/A') {
       const cleanPhone = editForm.phoneNumber.replace(/[\s-]/g, '');
       if (!PHONE_REGEX.test(cleanPhone)) {
-        return notify('Please enter a valid Philippine mobile phone number.', 'error', 'Invalid Phone');
+        return notify('Please enter a valid Philippine mobile phone number (e.g. 09XXXXXXXXX).', 'error', 'Invalid Phone');
       }
     }
 
     setShowConfirmModal(true);
   };
 
-  const handleFinalSave = () => {
+  const handleFinalSave = async () => {
     setShowConfirmModal(false);
-    setProfileData({ ...editForm });
-    setIsEditing(false);
-    notify('Profile and baseline configuration updated successfully.', 'success', 'Profile Updated');
+    setIsSaving(true);
+
+    try {
+      const updateEndpoint = API_ENDPOINTS.UPDATE_PROFILE || `${API_ENDPOINTS.LOGIN.replace('/auth/login', '')}/profile/update`;
+      const res = await fetch(updateEndpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: editForm.email,
+          firstName: editForm.firstName,
+          lastName: editForm.lastName,
+          phoneNumber: editForm.phoneNumber,
+          mobilityAssistance: editForm.mobilityAssistance.toLowerCase().replace(/\s+/g, '_'),
+          assistiveDevice: editForm.assistiveDevice.toLowerCase().replace(/\s+/g, '_')
+        })
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update profile settings.');
+
+      setProfileData({ ...editForm });
+      setIsEditing(false);
+      notify('Baseline configurations updated successfully.', 'success', 'Profile Updated');
+    } catch (err) {
+      notify(err.message, 'error', 'Update Failed');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const initial = profileData.firstName !== 'N/A' && profileData.firstName ? profileData.firstName[0].toUpperCase() : 'P';
@@ -436,7 +466,7 @@ export default function ProfileBaselineView({ user }) {
       {showConfirmModal && (
         <div
           className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
-          onClick={() => setShowConfirmModal(false)}
+          onClick={() => !isSaving && setShowConfirmModal(false)}
         >
           <div
             className="bg-white max-w-sm w-full p-6 rounded-[2rem] shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
@@ -461,17 +491,19 @@ export default function ProfileBaselineView({ user }) {
             <div className="pt-2 flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => setShowConfirmModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
               >
                 Back to Edit
               </button>
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={handleFinalSave}
-                className="flex-1 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold shadow-md shadow-pink-200 transition cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold shadow-md shadow-pink-200 transition cursor-pointer disabled:opacity-50"
               >
-                Confirm & Update
+                {isSaving ? 'Saving...' : 'Confirm & Update'}
               </button>
             </div>
           </div>

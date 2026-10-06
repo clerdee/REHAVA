@@ -1,0 +1,6 @@
+f
+npm run dev
+
+b
+.\venv\Scripts\Activate
+python app.py

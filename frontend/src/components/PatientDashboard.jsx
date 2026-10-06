@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar from './patient/Sidebar';
 import Header from './patient/Header';
+import { usePersistentTab } from '../hooks/usePersistentTab';
 import OverviewView from './patient/OverviewView';
 import PreviousNotificationsView from './patient/PreviousNotificationsView';
 import ExerciseTargetsView from './patient/ExerciseTargetsView';
@@ -9,8 +10,10 @@ import AppointmentsView from './patient/AppointmentsView';
 import ProfileBaselineView from './patient/ProfileBaselineView';
 import NotificationToast from './NotificationToast';
 
+const VALID_TABS = ['overview', 'telemetry', 'exercises', 'sessions', 'appointments', 'profile', 'notifications'];
+
 export default function PatientDashboard({ user, onLogout, onLaunchLiveTelemetry }) {
-  const [activeNav, setActiveNav] = useState('overview');
+  const [activeNav, setActiveNav, clearActiveTab] = usePersistentTab('overview', VALID_TABS);
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState({ message: '', type: 'info', title: 'System Notice' });
 
@@ -18,6 +21,7 @@ export default function PatientDashboard({ user, onLogout, onLaunchLiveTelemetry
   const clearToast = () => setToast(prev => ({ ...prev, message: '' }));
 
   const handleLogout = () => {
+    clearActiveTab();
     localStorage.removeItem('rehava_user');
     localStorage.clear();
     if (onLogout) onLogout();
@@ -69,7 +73,7 @@ export default function PatientDashboard({ user, onLogout, onLaunchLiveTelemetry
                 <button
                   type="button"
                   onClick={onLaunchLiveTelemetry}
-                  className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                  className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
                 >
                   Launch Full Stream Console →
                 </button>
@@ -78,11 +82,11 @@ export default function PatientDashboard({ user, onLogout, onLaunchLiveTelemetry
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Heel Contact (FSR)</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">2,410 ADC</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">0 ADC</div>
                 </div>
                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Sagittal Knee Pitch</span>
-                  <div className="text-2xl font-black text-indigo-600 mt-1">14.8°</div>
+                  <div className="text-2xl font-black text-indigo-600 mt-1">0.0°</div>
                 </div>
               </div>
             </div>
@@ -90,7 +94,7 @@ export default function PatientDashboard({ user, onLogout, onLaunchLiveTelemetry
 
           {activeNav === 'exercises' && <ExerciseTargetsView />}
           {activeNav === 'sessions' && <SessionLogsView onLaunchLiveTelemetry={onLaunchLiveTelemetry} />}
-          {activeNav === 'appointments' && <AppointmentsView />}
+          {activeNav === 'appointments' && <AppointmentsView user={user} />}
           {activeNav === 'profile' && <ProfileBaselineView user={user} />}
         </main>
       </div>

@@ -6,12 +6,13 @@ export const API_ENDPOINTS = {
   PROFILE: `${API_BASE_URL}/profile`,
   UPDATE_PROFILE: `${API_BASE_URL}/profile/update`,
   VERIFY_USER: `${API_BASE_URL}/auth/verify-user`,
+  APPOINTMENTS: `${API_BASE_URL}/appointments`,
+  BOOK_APPOINTMENT: `${API_BASE_URL}/appointments/book`,
+  CANCEL_APPOINTMENT: (id) => `${API_BASE_URL}/appointments/cancel/${id}`,
   
-
   // Telemetry & Hardware endpoints
   SESSIONS: `${API_BASE_URL}/sessions`,
   EXERCISES: `${API_BASE_URL}/exercises`,
-  APPOINTMENTS: `${API_BASE_URL}/appointments`,
 };
 
 export default API_BASE_URL;

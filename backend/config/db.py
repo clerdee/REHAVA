@@ -6,24 +6,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/rehava_db")
+DB_NAME = os.getenv("DB_NAME", "rehava_db")
 
 try:
-    # 5 seconds timeout para mabilis mag-report kung sakaling offline ang MongoDB
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    
-    # Ping test para masiguro ang koneksyon
-    client.admin.command('ping')
+    client.admin.command("ping")
     print("✅ Successfully connected to MongoDB!")
 
-    db = client["rehava_db"]
+    db = client.get_database(DB_NAME)
 
-    # REHAVA Collections
-    users_collection = db["users"]                  # Patient at Caregiver records
-    baselines_collection = db["profile_baselines"]  # Symmetry targets, hemiparesis side, orthosis
-    appointments_collection = db["appointments"]    # Clinic rehabilitation schedules
-    session_logs_collection = db["session_logs"]    # Recorded gait telemetry (FSR & MPU-6050)
-    exercise_targets_collection = db["exercises"]   # Daily prescribed motor exercises
+    users_collection = db["users"]
+    baselines_collection = db["profile_baselines"]
+    appointments_collection = db["appointments"]
+    session_logs_collection = db["session_logs"]
+    exercise_targets_collection = db["exercises"]
 
 except ConnectionFailure as e:
     print(f"❌ Failed to connect to MongoDB: {e}")
     db = None
+    users_collection = None
+    baselines_collection = None
+    appointments_collection = None
+    session_logs_collection = None
+    exercise_targets_collection = None

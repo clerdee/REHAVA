@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from config.db import db
 from routes.auth_routes import auth_bp
 from routes.profile_routes import profile_bp
+from routes.appointment_routes import appointment_bp
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ CORS(app, origins="*", allow_headers=["Content-Type", "Authorization"], methods=
 
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
 app.register_blueprint(profile_bp, url_prefix="/api/profile")
+app.register_blueprint(appointment_bp, url_prefix="/api/appointments")
 
 @app.route("/api/health", methods=["GET"])
 def health_check():

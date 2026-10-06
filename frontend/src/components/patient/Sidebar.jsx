@@ -1,5 +1,54 @@
-import React, { useState } from 'react';
-import logo from '../../assets/LOGO.png';
+import React, { useState, useEffect } from 'react';
+import logo from '../../assets/logo.png';
+import { API_ENDPOINTS } from '../../config/api';
+
+const NAV_ITEMS = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+    )
+  },
+  {
+    id: 'telemetry',
+    label: 'Live Telemetry',
+    live: true
+  },
+  {
+    id: 'exercises',
+    label: 'Exercise Targets',
+    badge: '3 Daily',
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" strokeWidth={2} />
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+      </>
+    )
+  },
+  {
+    id: 'sessions',
+    label: 'Session Logs',
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    )
+  },
+  {
+    id: 'appointments',
+    label: 'Appointments',
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    )
+  },
+  {
+    id: 'profile',
+    label: 'Profile & Baseline',
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    )
+  }
+];
 
 export default function Sidebar({
   activeNav,
@@ -11,14 +60,38 @@ export default function Sidebar({
   const [isHovered, setIsHovered] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [profileData, setProfileData] = useState(null);
 
   const isExpanded = isPinned || isHovered;
 
+  useEffect(() => {
+    const cachedUser = JSON.parse(localStorage.getItem('rehava_user') || '{}');
+    const targetUser = user || cachedUser;
+
+    if (!targetUser?.email) return;
+
+    fetch(`${API_ENDPOINTS.LOGIN.replace('/auth/login', '')}/auth/profile?email=${targetUser.email}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setProfileData(data);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const activeUser = profileData || user || JSON.parse(localStorage.getItem('rehava_user') || '{}');
+  const displayName = activeUser?.firstName && activeUser?.lastName
+    ? `${activeUser.firstName} ${activeUser.lastName}`
+    : activeUser?.firstName || 'Patient User';
+  const initial = displayName[0]?.toUpperCase() || 'P';
+  const affectedSide = activeUser?.affectedSide
+    ? `${activeUser.affectedSide.charAt(0).toUpperCase() + activeUser.affectedSide.slice(1)} Hemiparesis`
+    : 'Lower-Limb Rehabilitation';
+
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    if (onLogout) {
-      onLogout();
-    }
+    localStorage.removeItem('rehava_user');
+    localStorage.clear();
+    if (onLogout) onLogout();
   };
 
   return (
@@ -31,7 +104,6 @@ export default function Sidebar({
         } bg-white border-r border-slate-200/80 flex flex-col justify-between shrink-0 hidden md:flex sticky top-0 h-screen py-7 z-40 transition-all duration-300 ease-in-out select-none overflow-hidden`}
       >
         <div className="flex flex-col">
-          {/* Brand Header */}
           <div className={`flex items-center ${isExpanded ? 'justify-between px-5' : 'justify-center'} mb-8 h-10`}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-600 to-rose-500 flex items-center justify-center shadow-md shadow-pink-200 shrink-0">
@@ -49,14 +121,12 @@ export default function Sidebar({
               )}
             </div>
 
-            {/* Pin/Lock Toggle Button */}
             {isExpanded && (
               <button
+                type="button"
                 onClick={() => setIsPinned(!isPinned)}
                 className={`p-1.5 rounded-xl text-xs transition ${
-                  isPinned
-                    ? 'bg-pink-50 text-pink-600 font-extrabold'
-                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                  isPinned ? 'bg-pink-50 text-pink-600 font-extrabold' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
                 }`}
                 title={isPinned ? 'Unlock Auto-collapse' : 'Pin Sidebar Open'}
               >
@@ -65,7 +135,6 @@ export default function Sidebar({
             )}
           </div>
 
-          {/* Section Label */}
           {isExpanded && (
             <div className="px-6 mb-2 animate-in fade-in duration-150">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -74,159 +143,88 @@ export default function Sidebar({
             </div>
           )}
 
-          {/* Navigation Items */}
           <nav className="space-y-1.5 px-3">
-            {/* 1. Overview */}
-            <button
-              onClick={() => setActiveNav('overview')}
-              title={!isExpanded ? 'Overview' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-start px-4 gap-3.5' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'overview'
-                  ? 'bg-slate-100 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Overview</span>}
-            </button>
+            {NAV_ITEMS.map(item => {
+              const isActive = activeNav === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveNav(item.id);
+                    if (item.id === 'telemetry' && onLaunchLiveTelemetry) onLaunchLiveTelemetry();
+                  }}
+                  title={!isExpanded ? item.label : ''}
+                  className={`w-full flex items-center ${
+                    isExpanded ? 'justify-between px-4' : 'justify-center px-0'
+                  } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
+                    item.live
+                      ? isActive
+                        ? 'bg-pink-100/80 text-pink-700 shadow-xs'
+                        : 'text-pink-600 bg-pink-50/70 hover:bg-pink-100/70'
+                      : isActive
+                      ? 'bg-slate-100 text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`flex items-center ${isExpanded ? 'gap-3.5' : 'justify-center'}`}>
+                    {item.live ? (
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    ) : (
+                      <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        {item.icon}
+                      </svg>
+                    )}
+                    {isExpanded && (
+                      <span className="truncate whitespace-nowrap animate-in fade-in duration-200">
+                        {item.label}
+                      </span>
+                    )}
+                  </div>
 
-            {/* 2. Live Telemetry */}
-            <button
-              onClick={() => setActiveNav('telemetry')}
-              title={!isExpanded ? 'Live Telemetry' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-between px-4' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'telemetry'
-                  ? 'bg-pink-100/80 text-pink-700 shadow-xs'
-                  : 'text-pink-600 bg-pink-50/70 hover:bg-pink-100/70'
-              }`}
-            >
-              <div className={`flex items-center ${isExpanded ? 'gap-3.5' : 'justify-center'}`}>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Live Telemetry</span>}
-              </div>
-              {isExpanded && (
-                <span className="text-[10px] bg-white text-pink-600 px-2 py-0.5 rounded-full border border-pink-200 font-black tracking-wide shrink-0 animate-in fade-in duration-200">
-                  LIVE
-                </span>
-              )}
-            </button>
+                  {isExpanded && item.live && (
+                    <span className="text-[10px] bg-white text-pink-600 px-2 py-0.5 rounded-full border border-pink-200 font-black tracking-wide shrink-0 animate-in fade-in duration-200">
+                      LIVE
+                    </span>
+                  )}
 
-            {/* 3. Exercise Targets */}
-            <button
-              onClick={() => setActiveNav('exercises')}
-              title={!isExpanded ? 'Exercise Targets' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-between px-4' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'exercises'
-                  ? 'bg-slate-100 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`flex items-center ${isExpanded ? 'gap-3.5' : 'justify-center'}`}>
-                <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="12" cy="12" r="9" />
-                  <circle cx="12" cy="12" r="5" strokeWidth={2} />
-                  <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                </svg>
-                {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Exercise Targets</span>}
-              </div>
-              {isExpanded && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-50 text-pink-600 font-extrabold border border-pink-100 shrink-0 animate-in fade-in duration-200">
-                  3 Daily
-                </span>
-              )}
-            </button>
-
-            {/* 4. Session Logs */}
-            <button
-              onClick={() => setActiveNav('sessions')}
-              title={!isExpanded ? 'Session Logs' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-start px-4 gap-3.5' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'sessions'
-                  ? 'bg-slate-100 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Session Logs</span>}
-            </button>
-
-            {/* 5. Appointments */}
-            <button
-              onClick={() => setActiveNav('appointments')}
-              title={!isExpanded ? 'Appointments' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-start px-4 gap-3.5' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'appointments'
-                  ? 'bg-slate-100 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Appointments</span>}
-            </button>
-
-            {/* 6. Profile & Baseline */}
-            <button
-              onClick={() => setActiveNav('profile')}
-              title={!isExpanded ? 'Profile & Baseline' : ''}
-              className={`w-full flex items-center ${
-                isExpanded ? 'justify-start px-4 gap-3.5' : 'justify-center px-0'
-              } py-3.5 rounded-2xl text-[13.5px] font-bold transition-all duration-150 ${
-                activeNav === 'profile'
-                  ? 'bg-slate-100 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              {isExpanded && <span className="truncate whitespace-nowrap animate-in fade-in duration-200">Profile & Baseline</span>}
-            </button>
+                  {isExpanded && item.badge && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-50 text-pink-600 font-extrabold border border-pink-100 shrink-0 animate-in fade-in duration-200">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
-        {/* Patient Profile Footer Badge */}
         <div className={`pt-4 border-t border-slate-100 flex items-center ${isExpanded ? 'justify-between px-5' : 'justify-center px-2'}`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div
               className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-pink-500 text-white font-black text-sm flex items-center justify-center shadow-xs shrink-0"
-              title={`${user?.firstName || 'Roberto'} ${user?.lastName || 'Dela Cruz'}`}
+              title={displayName}
             >
-              {user?.firstName ? user.firstName[0] : 'R'}
+              {initial}
             </div>
             {isExpanded && (
-              <div className="flex flex-col text-left leading-tight overflow-hidden animate-in fade-in duration-200">
+              <div className="flex flex-col text-left leading-tight overflow-hidden animate-in fade-in duration-200 min-w-0">
                 <span className="text-xs font-extrabold text-slate-800 truncate whitespace-nowrap">
-                  {user?.firstName || 'Roberto'} {user?.lastName || 'Dela Cruz'}
+                  {displayName}
                 </span>
                 <span className="text-[11px] text-pink-600 font-semibold mt-0.5 truncate whitespace-nowrap">
-                  Left Hemiparesis
+                  {affectedSide}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Replaced 'X' button with Sign Out Icon */}
           {isExpanded && (
             <button
+              type="button"
               onClick={() => setShowLogoutModal(true)}
               title="Sign Out"
-              className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition flex items-center justify-center"
+              className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition flex items-center justify-center shrink-0"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -236,7 +234,6 @@ export default function Sidebar({
         </div>
       </aside>
 
-      {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"

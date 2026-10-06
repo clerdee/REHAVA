@@ -144,3 +144,44 @@ def login():
     except Exception as e:
         print(f"Login Error: {e}")
         return jsonify({"error": "Internal server error during login"}), 500
+
+@auth_bp.route("/profile", methods=["GET"])
+def get_profile():
+    try:
+        email = request.args.get("email", "").strip().lower()
+        if not email:
+            return jsonify({"error": "Email parameter required"}), 400
+
+        user = users_collection.find_one({"email": email})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        baseline = baselines_collection.find_one({"userEmail": email}) or {}
+        patient_obj = user.get("patient", {})
+
+        return jsonify({
+            "firstName": user.get("firstName", ""),
+            "lastName": user.get("lastName", ""),
+            "email": user.get("email", ""),
+            "phoneNumber": user.get("phoneNumber", ""),
+            "relationshipToPatient": user.get("relationshipToPatient", "patient_self"),
+            "patientType": user.get("patientType", "myself"),
+            "patientFirstName": patient_obj.get("firstName", ""),
+            "patientLastName": patient_obj.get("lastName", ""),
+            "patientEmail": patient_obj.get("email", ""),
+            "patientPhone": patient_obj.get("phoneNumber", ""),
+            "patientAge": patient_obj.get("age"),
+            "patientGender": patient_obj.get("gender", ""),
+            "patientWorkStatus": patient_obj.get("workStatus", "unspecified"),
+            "affectedSide": baseline.get("affectedSide", "left"),
+            "strokeStage": baseline.get("strokeStage", "subacute"),
+            "mobilityAssistance": baseline.get("mobilityAssistance", "cane_walker"),
+            "assistiveDevice": baseline.get("assistiveDevice", "none"),
+            "targetSymmetryPercentage": baseline.get("targetSymmetryPercentage", 0),
+            "cadenceTargetBpm": baseline.get("cadenceTargetBpm", 0),
+            "fsrThresholds": baseline.get("fsrThresholds", {})
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
